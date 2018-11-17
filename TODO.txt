@@ -1,0 +1,7 @@
+-Reduce or remove the usage of delay().
+-Convert the brightness variable from a digital output range to a time delay range.
+-Change the on/off push button to a touchpad capable of dimming.
+-Write hardware connection documentation.
+-Project Readme details and proper attributations.
+-Explore using a wifi module instead of bluetooth, for future smart home hub integration.
+-Remove software serial utilization.
