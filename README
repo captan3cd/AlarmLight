@@ -1,1 +1,1 @@
-An Arduino powered dimmer.
+An Arduino powered dimmer. The goal is to create a light dimmer that can slowly turn on a light at a scheduled time. Includes the ability to set the alarm time through bluetooth and to manually turn the light on or off with a button.
