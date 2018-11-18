@@ -3,8 +3,9 @@
  * 
  */
 #include <Wire.h>
-#include "RTClib.h"
-#include <SoftwareSerial.h> 
+#include "RTClib.h" //For working with the RTC module
+#include <SoftwareSerial.h> //Used for bluetooth serial
+#include <TimerOne.h> //Simplifies handling the hw timer
 
 /*RTC Pins are 
  * Vin to 3-5V
@@ -18,47 +19,57 @@
 #define rxPin 4
 #define ZX 3 //Zero crossing detector, should be an interput pin, in this case, interupt 1
 
-RTC_DS3231 rtc;
+RTC_DS3231 RTC;
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
-DateTime currenttime;
-DateTime lasttime;
+DateTime CurrentTime;
+DateTime LastTime;
 SoftwareSerial BTSerial(rxPin, txPin); 
 
 unsigned short alarmtime [2] = {12,1}; //hour and minute of alarm
-short brightness = 0; //current brightness of the light (analog range from 0 t0 255). We do some math with this variable where the value can be less then 0, so it can't be unsigned (probs).
 bool alarmlightstatus = false;  //tracks whether the alarm has already gone off
 volatile bool buttonstate = 0;
 
-char BTchar;
-short BTinput[18];
+char btchar;
+short btinput[18];
 
 unsigned short hardtimeramp = 3000; //Time for the light to dim on a hard on/off press
 unsigned long alarmramp = 30000; //Time for alarm light to reach max brightness
 unsigned short adjustramp = 500; //Time for light to change for a brightness adjustment
 
-unsigned short dimming = 60;
+short dimming = 64; //range is theoretically from 0-128, but limited to 4-124 due to timing limits
+volatile short wavecounter =0; //counter used in timing interrupt
+volatile boolean zerocross = 0; //Flag for zero crossing
+short freqstep = 65;  //For 50Hz, use 75
+// It is calculated based on the frequency of your voltage supply (50Hz or 60Hz)
+// and the number of brightness steps you want. 
+// 
+// Realize that there are 2 zerocrossing per cycle. This means
+// zero crossing happens at 120Hz for a 60Hz supply or 100Hz for a 50Hz supply. 
 
+// To calculate freqStep divide the length of one full half-wave of the power
+// cycle (in microseconds) by the number of brightness steps. 
+//
+// (120 Hz=8333uS) / 128 brightness steps = 65 uS / brightness step
+// (100Hz=10000uS) / 128 steps = 75uS/step
 
 void setup() {
   Serial.begin(9600);
   BTSerial.begin(9600);
-  
-  delay(3000); // wait for console opening
 
-  while (! rtc.begin()) {
+  while (! RTC.begin()) {
     Serial.println("Couldn't find RTC");
     delay(5000);
   }
 
-  if (rtc.lostPower()) {
+  if (RTC.lostPower()) {
     Serial.println("RTC lost power, lets set the time!");
     // following line sets the RTC to the date & time this sketch was compiled
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
     // This line sets the RTC with an explicit date & time, for example to set
     // January 21, 2014 at 3am you would call:
-    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+    // RTC.adjust(DateTime(2014, 1, 21, 3, 0, 0));
   }
   pinMode(AC_LOAD,OUTPUT);
   pinMode(PUSHPIN,INPUT);
@@ -66,61 +77,63 @@ void setup() {
 
   attachInterrupt(0,ButtonPress,RISING);
   attachInterrupt(1,ZeroCross,RISING);
+  Timer1.initialize(freqstep);
+  Timer1.attachInterrupt(DimCheck,freqstep);
 
 }
 
 void loop() {
-  if (rtc.lostPower()){
-    //Error handling if the rtc loses power
+  if (RTC.lostPower()){
+    //Error handling if the RTC loses power
     Serial.println("Please reset the time!");
   }
   
-  currenttime = rtc.now();
+  CurrentTime = RTC.now();
 
   //If the day has changed, reset the alarm flag so it can go off again.
-  if (abs(currenttime.day()-lasttime.day()))
+  if (abs(CurrentTime.day()-LastTime.day()))
     alarmlightstatus=false;
 
   //If the current time is past the alarm time, and the light is less than half max brightness
-  if (currenttime.hour()>=alarmtime[0] && currenttime.minute()>=alarmtime[1] && brightness<=125 && !alarmlightstatus){
+  if (CurrentTime.hour()>=alarmtime[0] && CurrentTime.minute()>=alarmtime[1] && dimming>=64 && !alarmlightstatus){
     alarmlightstatus=true;
-    LightRamp(brightness, 255, alarmramp);
+    LightRamp(dimming, 4, alarmramp); //4 for max brightness
     buttonstate=0;
   }
-  //Serial.print(currenttime.hour(),DEC); Serial.println(currenttime.minute(),DEC);
+  //Serial.print(CurrentTime.hour(),DEC); Serial.println(CurrentTime.minute(),DEC);
   //Serial.println(brightness);
   Serial.println(buttonstate);
   if (buttonstate!=0){
     buttonstate = 0;
-    if (brightness>0)
-      LightRamp(brightness,0,hardtimeramp);
+    if (dimming<124)
+      LightRamp(dimming,124,hardtimeramp);
     else
-      LightRamp(brightness,255,hardtimeramp);
+      LightRamp(dimming,4,hardtimeramp);
   }
 
-  lasttime = currenttime;
+  LastTime = CurrentTime;
 
   if (BTSerial.available()){  //Reads in serial data. A proper input package should start with 'H', followed by the alarm time, current time and current date.
-    BTchar = BTSerial.read();
-    if (BTchar == 'H'){
+    btchar = BTSerial.read();
+    if (btchar == 'H'){
       for( short i =0; i<18 && BTSerial.available(); i++) {
-         BTchar = BTSerial.read();
-         if (BTchar >= '0' && BTchar <='9')
-            BTinput[i] = BTchar - '0';
+         btchar = BTSerial.read();
+         if (btchar >= '0' && btchar <='9')
+            btinput[i] = btchar - '0';
          else{
           BTSerial.flush();
           Serial.print("Invalid Input. Flushing...");
           break;
          }
       }
-      SetTimes(BTinput);
+      SetTimes(btinput);
     }
     
-    else if (BTchar == 'h'){ // a 'h' header specifies a slider adjustment to the light level
-      BTchar = BTSerial.read();
-      short tempbrightness = (BTchar - '0')*10 + (BTSerial.read() - '0'); //This is a brightness percentage from 0 to 99.
+    else if (btchar == 'h'){ // a 'h' header specifies a slider adjustment to the light level
+      btchar = BTSerial.read();
+      short tempbrightness = (btchar - '0')*10 + (BTSerial.read() - '0'); //This is a brightness percentage from 0 to 99.
       if (tempbrightness <=100 && tempbrightness >=0){
-        LightRamp(brightness,tempbrightness * 2.55,adjustramp);  //2.55 is the conversation factor to get to convert from percentage to pin output.
+        LightRamp(dimming,124 - tempbrightness * 1.2121,adjustramp);  //y=124-1.2121x converts from percent to dimming
       }
     }
     else
@@ -134,7 +147,7 @@ void LightRamp (short &cbright, short tbright, unsigned short timeramp){
   short sign = (tbright-cbright)/abs(tbright-cbright);
   while((tbright-cbright)!=0 && !buttonstate){
     cbright=cbright+sign;
-    analogWrite(AC_LOAD,cbright);
+    //analogWrite(AC_LOAD,cbright);
     Serial.println(cbright);
     delay(delaytime);
   }
@@ -148,13 +161,13 @@ void SetTimes(short TimeInput[18]){
   short cday = TimeInput[12]*10 + TimeInput[13];
   short cmonth = TimeInput[14]*10 + TimeInput[15];
   short cyear = 2000 + TimeInput[16]*10 + TimeInput[17];
-  rtc.adjust( DateTime(cyear, cmonth, cday, chour, cminute, csecond) );
+  RTC.adjust( DateTime(cyear, cmonth, cday, chour, cminute, csecond) );
   
   alarmtime[0] = TimeInput[0]*10 + TimeInput[1];
   alarmtime[1] = TimeInput[2]*10 + TimeInput[3];
   //TimeInput[4:5] Is the alarm time seconds, which is not currently used.
 
-  for (short i = 0; i<0; i++) //clears the TimeInput / BTinput array
+  for (short i = 0; i<0; i++) //clears the TimeInput / btinput array
     TimeInput[i] = 0;
 }
 
@@ -163,18 +176,20 @@ void ButtonPress(){
 }
 
 void ZeroCross(){
-  // Firing angle calculation : 1 full 50Hz wave =1/50=20ms 
-  // Every zerocrossing thus: (50Hz)-> 10ms (1/2 Cycle) 
-  // For 60Hz => 8.33ms (10.000/120)
-  // 10ms=10000us
-  // (10000us - 10us) / 128 = 75 (Approx) For 60Hz =>65
-  
-  // The logic for the above brightness is 0-255 for Digital output. However, the timing logic was made for a 124 to 5 scale. Conversion is 124-brightness/2.14285714286. Needs to be unified later.
-  delayMicroseconds(65*(124-brightness/2.14285714286));    // Wait till firing the TRIAC, // For 60Hz =>65
-  digitalWrite(AC_LOAD, HIGH);   // Fire the TRIAC
-  delayMicroseconds(8.33);         // triac On propogation delay 
-         // (for 60Hz use 8.33) Some Triacs need a longer period
-  digitalWrite(AC_LOAD, LOW);    // No longer trigger the TRIAC (the next zero crossing will swith it off) TRIAC
+  zerocross = true;
+  wavecounter = 0; //reset the counter
+  digitalWrite(AC_LOAD, LOW);    //Turn off TRIAC
 }
 
+void DimCheck() {                 
+  if(zerocross == true) {             
+    if(wavecounter>=dimming) {              
+      digitalWrite(AC_LOAD, HIGH); // turn on light       
+      wavecounter=0;  // reset time step counter                         
+      zerocross = false; //reset zero cross detection
+    } 
+    else 
+      wavecounter++; // increment time step counter                                                     
+  }                                  
+}
 
