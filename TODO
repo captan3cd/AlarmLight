@@ -1,5 +1,4 @@
--Reduce or remove the usage of delay().
--Convert the brightness variable from a digital output range to a time delay range.
+-Rework the LightRamp function to remove delay().
 -Change the on/off push button to a touchpad capable of dimming.
 -Write hardware connection documentation.
 -Project Readme details and proper attributations.
