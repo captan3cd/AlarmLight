@@ -1,1 +1,12 @@
 An Arduino powered dimmer. The goal is to create a light dimmer that can slowly turn on a light at a scheduled time. Includes the ability to set the alarm time through bluetooth and to manually turn the light on or off with a button.
+
+Compile
+The ino file should be compiled from Arduino's IDE. If using a Nano V3 the board should be set to "Arduino Duemilanove or Diecimila" and the processor to "ATmega328p".
+The following libraries need to be added to Arduino's library folder.
+RTClib <https://www.arduinolibraries.info/libraries/rt-clib>
+TimerOne <https://www.arduinolibraries.info/libraries/timer-one>
+
+Attributions
+Code snippits are used and modified from Ryan McLaughlin and diy_bloke's Light Dimmer code. <https://www.instructables.com/id/Arduino-controlled-light-dimmer-The-circuit>.
+
+
