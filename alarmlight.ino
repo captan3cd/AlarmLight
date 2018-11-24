@@ -6,6 +6,7 @@
 #include <RTClib.h> //For working with the RTC module
 #include <SoftwareSerial.h> //Used for bluetooth serial
 #include <TimerOne.h> //Simplifies handling the hw timer
+#include "LightRamp.h" //Provides LightRamp class for dimming
 
 /*RTC Pins are 
  * Vin to 3-5V
@@ -18,53 +19,6 @@
 #define txPin 5
 #define rxPin 4
 #define ZX 3 //Zero crossing detector, should be an interput pin, in this case, interupt 1
-
-class LightRamp {
-  unsigned short timeramp;
-  unsigned short delaytime;
-  short targetbright;
-  short beginbright;  //may not need this
-  short* currentbright;
-  short sign;
-
-  short flag; // an number that designates the specific class instances. Compared against the activeflag in the main loop to determine which lightramp instance to use.
-  short* activeflag;
-  
-  unsigned long currentclick;
-  unsigned long prevclick;
-  
-  public:
-  LightRamp (short f, short* a ){
-    flag = f;
-    activeflag = a;
-  }
-  
-  void Set(short* cbright, short tbright, unsigned short ramp){ //the cbright param should be passed with &variable
-    targetbright = tbright;
-    beginbright = *cbright;
-    currentbright = cbright;
-    timeramp = ramp;
-    
-    delaytime = timeramp / abs (targetbright - beginbright);
-    sign = (targetbright - beginbright)/ abs (targetbright - beginbright);
-  }
-
-  void Update (){
-    if (flag != *activeflag)  //if this isn't the active lightramp, quit
-      return;
-
-    currentclick = millis();
-
-    if (currentclick - prevclick > delaytime){
-      *currentbright = (*currentbright + sign);
-      Serial.println(*currentbright);
-      prevclick = currentclick;
-      if (*currentbright == targetbright)  //if the current brightness is the target brightness, reset the activeflag so no more updates occur.
-        *activeflag = 0; 
-    }
-    
-  }
-};
 
 RTC_DS3231 RTC;
 
@@ -105,6 +59,8 @@ short freqstep = 65;  //For 50Hz, use 75
 //
 // (120 Hz=8333uS) / 128 brightness steps = 65 uS / brightness step
 // (100Hz=10000uS) / 128 steps = 75uS/step
+
+
 
 void setup() {
   Serial.begin(9600);
