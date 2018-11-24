@@ -1,6 +1,4 @@
 -Change the on/off push button to a touchpad capable of dimming.
--Write hardware connection documentation.
--Project Readme details and proper attributations.
 -Explore using a wifi module instead of bluetooth, for future smart home hub integration.
 -Remove software serial utilization.
 -Troubleshoot the occasional issue with the button interrupt somehow affecting the timing of the lightramps.

@@ -1,12 +1,18 @@
 An Arduino powered dimmer. The goal is to create a light dimmer that can slowly turn on a light at a scheduled time. Includes the ability to set the alarm time through bluetooth and to manually turn the light on or off with a button.
 
+Details
+This project uses a Zero-Cross detector based AC dimmer to control the voltaged delivered to an AC light. An RTC module is used for scheduling the light to slowly turn on at a specified time. A simple push button is used for basic on/off control. Finally, a bluetooth module allows for remotely setting the alarm time and light brightness.
+
 Compile
-The ino file should be compiled from Arduino's IDE. If using a Nano V3 the board should be set to "Arduino Duemilanove or Diecimila" and the processor to "ATmega328p".
+The ino file should be compiled from Arduino's IDE. If using a Nano V3 the IDE's board option should be set to "Arduino Duemilanove or Diecimila" and the processor to "ATmega328p".
 The following libraries need to be added to Arduino's library folder.
 RTClib <https://www.arduinolibraries.info/libraries/rt-clib>
 TimerOne <https://www.arduinolibraries.info/libraries/timer-one>
 
 Attributions
-Code snippits are used and modified from Ryan McLaughlin and diy_bloke's Light Dimmer code. <https://www.instructables.com/id/Arduino-controlled-light-dimmer-The-circuit>.
+Code snippits are used and modified from Ryan McLaughlin and diy_bloke's Light Dimmer code. <https://www.instructables.com/id/Arduino-controlled-light-dimmer-The-circuit> <https://forum.arduino.cc/index.php?topic=6970.0>.
+
+The RTClib library produced by Adafruit and the TimerOne library (Tane, Despatis, Polli, Clemens, Stoffregen) are utilized. 
+
 
 
