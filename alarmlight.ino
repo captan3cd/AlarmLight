@@ -3,7 +3,7 @@
  * 
  */
 #include <Wire.h>
-#include "RTClib.h" //For working with the RTC module
+#include <RTClib.h> //For working with the RTC module
 #include <SoftwareSerial.h> //Used for bluetooth serial
 #include <TimerOne.h> //Simplifies handling the hw timer
 
@@ -19,13 +19,60 @@
 #define rxPin 4
 #define ZX 3 //Zero crossing detector, should be an interput pin, in this case, interupt 1
 
+class LightRamp {
+  unsigned short timeramp;
+  unsigned short delaytime;
+  short targetbright;
+  short beginbright;  //may not need this
+  short* currentbright;
+  short sign;
+
+  short flag; // an number that designates the specific class instances. Compared against the activeflag in the main loop to determine which lightramp instance to use.
+  short* activeflag;
+  
+  unsigned long currentclick;
+  unsigned long prevclick;
+  
+  public:
+  LightRamp (short f, short* a ){
+    flag = f;
+    activeflag = a;
+  }
+  
+  void Set(short* cbright, short tbright, unsigned short ramp){ //the cbright param should be passed with &variable
+    targetbright = tbright;
+    beginbright = *cbright;
+    currentbright = cbright;
+    timeramp = ramp;
+    
+    delaytime = timeramp / abs (targetbright - beginbright);
+    sign = (targetbright - beginbright)/ abs (targetbright - beginbright);
+  }
+
+  void Update (){
+    if (flag != *activeflag)  //if this isn't the active lightramp, quit
+      return;
+
+    currentclick = millis();
+
+    if (currentclick - prevclick > delaytime){
+      *currentbright = (*currentbright + sign);
+      Serial.println(*currentbright);
+      prevclick = currentclick;
+      if (*currentbright == targetbright)  //if the current brightness is the target brightness, reset the activeflag so no more updates occur.
+        *activeflag = 0; 
+    }
+    
+  }
+};
+
 RTC_DS3231 RTC;
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
 DateTime CurrentTime;
 DateTime LastTime;
-SoftwareSerial BTSerial(rxPin, txPin); 
+SoftwareSerial BTSerial(rxPin, txPin);
 
 unsigned short alarmtime [2] = {12,1}; //hour and minute of alarm
 bool alarmlightstatus = false;  //tracks whether the alarm has already gone off
@@ -34,9 +81,14 @@ volatile bool buttonstate = 0;
 char btchar;
 short btinput[18];
 
-unsigned short hardtimeramp = 3000; //Time for the light to dim on a hard on/off press
-unsigned long alarmramp = 30000; //Time for alarm light to reach max brightness
-unsigned short adjustramp = 500; //Time for light to change for a brightness adjustment
+unsigned short hardtimeramp = 3000; //Time for the light to dim on a hard on/off press  milliseconds
+unsigned long alarmtimeramp = 30000; //Time for alarm light to reach max brightness
+unsigned short adjusttimeramp = 500; //Time for light to change for a brightness adjustment
+
+short activeflag = 0; //Determines the active lightramp: 0=none, 1=button, 2=adjustment, 3=alarm
+LightRamp ButtonRamp (1,&activeflag);
+LightRamp AdjustRamp (2,&activeflag);
+LightRamp AlarmRamp (3,&activeflag);
 
 short dimming = 64; //range is theoretically from 0-128, but limited to 4-124 due to timing limits
 volatile short wavecounter =0; //counter used in timing interrupt
@@ -97,21 +149,26 @@ void loop() {
   //If the current time is past the alarm time, and the light is less than half max brightness
   if (CurrentTime.hour()>=alarmtime[0] && CurrentTime.minute()>=alarmtime[1] && dimming>=64 && !alarmlightstatus){
     alarmlightstatus=true;
-    LightRamp(dimming, 4, alarmramp); //4 for max brightness
+    activeflag = 3;
+    AlarmRamp.Set(&dimming, 4, alarmtimeramp);
+    //LightRamp(dimming, 4, alarmtimeramp); //4 for max brightness
     buttonstate=0;
   }
   //Serial.print(CurrentTime.hour(),DEC); Serial.println(CurrentTime.minute(),DEC);
-  //Serial.println(brightness);
-  Serial.println(buttonstate);
-  if (buttonstate!=0){
-    buttonstate = 0;
-    if (dimming<124)
-      LightRamp(dimming,124,hardtimeramp);
-    else
-      LightRamp(dimming,4,hardtimeramp);
-  }
 
   LastTime = CurrentTime;
+  
+  if (buttonstate!=0){
+    buttonstate = 0;
+    if (dimming<124){
+      ButtonRamp.Set(&dimming, 124, hardtimeramp);
+      activeflag = 1;
+    }
+    else{
+      ButtonRamp.Set(&dimming, 4, hardtimeramp);
+      activeflag = 1;
+    }
+  }
 
   if (BTSerial.available()){  //Reads in serial data. A proper input package should start with 'H', followed by the alarm time, current time and current date.
     btchar = BTSerial.read();
@@ -133,24 +190,16 @@ void loop() {
       btchar = BTSerial.read();
       short tempbrightness = (btchar - '0')*10 + (BTSerial.read() - '0'); //This is a brightness percentage from 0 to 99.
       if (tempbrightness <=100 && tempbrightness >=0){
-        LightRamp(dimming,124 - tempbrightness * 1.2121,adjustramp);  //y=124-1.2121x converts from percent to dimming
+        AdjustRamp.Set(&dimming, 124 - tempbrightness * 1.2121, adjusttimeramp);
       }
     }
     else
       BTSerial.flush();
   }
-  
-}
 
-void LightRamp (short &cbright, short tbright, unsigned short timeramp){
-  unsigned short delaytime = timeramp/abs(tbright-cbright);
-  short sign = (tbright-cbright)/abs(tbright-cbright);
-  while((tbright-cbright)!=0 && !buttonstate){
-    cbright=cbright+sign;
-    //analogWrite(AC_LOAD,cbright);
-    Serial.println(cbright);
-    delay(delaytime);
-  }
+  ButtonRamp.Update();
+  AdjustRamp.Update();
+  AlarmRamp.Update();
 }
 
 void SetTimes(short TimeInput[18]){
