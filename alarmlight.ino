@@ -8,12 +8,6 @@
 #include <TimerOne.h> //Simplifies handling the hw timer
 #include "LightRamp.h" //Provides LightRamp class for dimming
 
-/*RTC Pins are 
- * Vin to 3-5V
- * GND to GND
- * SCL to Arduino SCL
- * SDA to Arduino SDA 
- */
 #define AC_LOAD A2
 #define PUSHPIN 2 //should be interupt pin, in this case, interupt 0
 #define txPin 5
@@ -23,12 +17,14 @@
 RTC_DS3231 RTC;
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+unsigned short currentday = 0; //0 to 6, M to Sun
 
 DateTime CurrentTime;
 DateTime LastTime;
 SoftwareSerial BTSerial(rxPin, txPin);
 
-unsigned short alarmtime [2] = {12,1}; //hour and minute of alarm
+unsigned short alarmtime[7][2] = {{21,17},{6,10},{6,10},{6,10},{6,10},{100,100},{100,100}}; //hour and minute of alarm
+
 bool alarmlightstatus = false;  //tracks whether the alarm has already gone off
 volatile bool buttonstate = 0;
 
@@ -44,9 +40,10 @@ LightRamp ButtonRamp (1,&activeflag);
 LightRamp AdjustRamp (2,&activeflag);
 LightRamp AlarmRamp (3,&activeflag);
 
-short dimming = 64; //range is theoretically from 0-128, but limited to 4-124 due to timing limits
+short dimming = 124; //range is theoretically from 0-128, but limited to 4-124 due to timing limits
 volatile short wavecounter =0; //counter used in timing interrupt
 volatile boolean zerocross = 0; //Flag for zero crossing
+
 short freqstep = 65;  //For 50Hz, use 75
 // It is calculated based on the frequency of your voltage supply (50Hz or 60Hz)
 // and the number of brightness steps you want. 
@@ -59,8 +56,6 @@ short freqstep = 65;  //For 50Hz, use 75
 //
 // (120 Hz=8333uS) / 128 brightness steps = 65 uS / brightness step
 // (100Hz=10000uS) / 128 steps = 75uS/step
-
-
 
 void setup() {
   Serial.begin(9600);
@@ -79,6 +74,9 @@ void setup() {
     // January 21, 2014 at 3am you would call:
     // RTC.adjust(DateTime(2014, 1, 21, 3, 0, 0));
   }
+
+  LastTime = RTC.now(); //Lasttime needs to be initiated, otherwise the first pass through the main loop thinks there is a day change
+  
   pinMode(AC_LOAD,OUTPUT);
   pinMode(PUSHPIN,INPUT);
   pinMode(ZX, INPUT);
@@ -87,7 +85,6 @@ void setup() {
   attachInterrupt(1,ZeroCross,RISING);
   Timer1.initialize(freqstep);
   Timer1.attachInterrupt(DimCheck,freqstep);
-
 }
 
 void loop() {
@@ -97,13 +94,18 @@ void loop() {
   }
   
   CurrentTime = RTC.now();
-
-  //If the day has changed, reset the alarm flag so it can go off again.
-  if (abs(CurrentTime.day()-LastTime.day()))
+  
+  //If the day has changed, reset the alarm flag so it can go off again. Also increment the day counter
+  if (abs(CurrentTime.day()-LastTime.day())){
     alarmlightstatus=false;
+    if (currentday <6)
+      currentday++;
+    else
+      currentday = 0;
+  }    
 
   //If the current time is past the alarm time, and the light is less than half max brightness
-  if (CurrentTime.hour()>=alarmtime[0] && CurrentTime.minute()>=alarmtime[1] && dimming>=64 && !alarmlightstatus){
+  if (CurrentTime.hour()>=alarmtime[currentday][0] && CurrentTime.minute()>=alarmtime[currentday][1] && dimming>=64 && !alarmlightstatus){
     alarmlightstatus=true;
     activeflag = 3;
     AlarmRamp.Set(&dimming, 4, alarmtimeramp);
@@ -126,7 +128,8 @@ void loop() {
     }
   }
 
-  if (BTSerial.available()){  //Reads in serial data. A proper input package should start with 'H', followed by the alarm time, current time and current date.
+  //Reads in serial data. A proper input package should start with 'H', followed by the alarm time, current time and current date.
+  if (BTSerial.available()){ 
     btchar = BTSerial.read();
     if (btchar == 'H'){
       for( short i =0; i<18 && BTSerial.available(); i++) {
@@ -168,8 +171,8 @@ void SetTimes(short TimeInput[18]){
   short cyear = 2000 + TimeInput[16]*10 + TimeInput[17];
   RTC.adjust( DateTime(cyear, cmonth, cday, chour, cminute, csecond) );
   
-  alarmtime[0] = TimeInput[0]*10 + TimeInput[1];
-  alarmtime[1] = TimeInput[2]*10 + TimeInput[3];
+  alarmtime[currentday][0] = TimeInput[0]*10 + TimeInput[1];
+  alarmtime[currentday][1] = TimeInput[2]*10 + TimeInput[3];
   //TimeInput[4:5] Is the alarm time seconds, which is not currently used.
 
   for (short i = 0; i<0; i++) //clears the TimeInput / btinput array
