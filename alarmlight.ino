@@ -1,7 +1,5 @@
 /*Slowly turn on a light at a scheduled time.
- * 
- * 
- */
+*/
 #include <Wire.h>
 #include <RTClib.h> //For working with the RTC module
 #include <SoftwareSerial.h> //Used for bluetooth serial
@@ -16,14 +14,15 @@
 
 RTC_DS3231 RTC;
 
-char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-unsigned short currentday = 0; //0 to 6, M to Sun
+char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}; 
+//Can be used in conjuction with the DateTime class' dayOfTheWeek() function
+unsigned short currentday = 0; //Used as a shorthand for the value of DateTime.dayOfTheWeek()
 
 DateTime CurrentTime;
 DateTime LastTime;
 SoftwareSerial BTSerial(rxPin, txPin);
 
-unsigned short alarmtime[7][2] = {{21,17},{6,10},{6,10},{6,10},{6,10},{100,100},{100,100}}; //hour and minute of alarm
+unsigned short alarmtime[7][2] = {{100,100},{6,20},{6,20},{6,20},{6,20},{6,20},{100,100}}; //hour and minute of alarm
 
 bool alarmlightstatus = false;  //tracks whether the alarm has already gone off
 volatile bool buttonstate = 0;
@@ -32,7 +31,7 @@ char btchar;
 short btinput[18];
 
 unsigned short hardtimeramp = 3000; //Time for the light to dim on a hard on/off press  milliseconds
-unsigned long alarmtimeramp = 30000; //Time for alarm light to reach max brightness
+unsigned long alarmtimeramp = 1200000; //Time for alarm light to reach max brightness
 unsigned short adjusttimeramp = 500; //Time for light to change for a brightness adjustment
 
 short activeflag = 0; //Determines the active lightramp: 0=none, 1=button, 2=adjustment, 3=alarm
@@ -40,8 +39,8 @@ LightRamp ButtonRamp (1,&activeflag);
 LightRamp AdjustRamp (2,&activeflag);
 LightRamp AlarmRamp (3,&activeflag);
 
-short dimming = 124; //range is theoretically from 0-128, but limited to 4-124 due to timing limits
-volatile short wavecounter =0; //counter used in timing interrupt
+short dimming = 4; //range is theoretically from 0-128, but limited to 4-124 due to timing limits
+volatile short wavecounter = 0; //counter used in timing interrupt
 volatile boolean zerocross = 0; //Flag for zero crossing
 
 short freqstep = 65;  //For 50Hz, use 75
@@ -76,6 +75,7 @@ void setup() {
   }
 
   LastTime = RTC.now(); //Lasttime needs to be initiated, otherwise the first pass through the main loop thinks there is a day change
+  currentday = LastTime.dayOfTheWeek();
   
   pinMode(AC_LOAD,OUTPUT);
   pinMode(PUSHPIN,INPUT);
@@ -98,14 +98,11 @@ void loop() {
   //If the day has changed, reset the alarm flag so it can go off again. Also increment the day counter
   if (abs(CurrentTime.day()-LastTime.day())){
     alarmlightstatus=false;
-    if (currentday <6)
-      currentday++;
-    else
-      currentday = 0;
+    currentday = CurrentTime.dayOfTheWeek(); // Update the day variable
   }    
 
-  //If the current time is past the alarm time, and the light is less than half max brightness
-  if (CurrentTime.hour()>=alarmtime[currentday][0] && CurrentTime.minute()>=alarmtime[currentday][1] && dimming>=64 && !alarmlightstatus){
+  //If the current time is past the alarm time, and the light is less than half max brightness, and the alarm is set / valid
+  if (CurrentTime.hour()>=alarmtime[currentday][0] && CurrentTime.minute()>=alarmtime[currentday][1] && dimming>=64 && alarmtime[currentday][0]<24 &&!alarmlightstatus){
     alarmlightstatus=true;
     activeflag = 3;
     AlarmRamp.Set(&dimming, 4, alarmtimeramp);
