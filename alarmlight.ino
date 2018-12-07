@@ -28,7 +28,7 @@ bool alarmlightstatus = false;  //tracks whether the alarm has already gone off
 volatile bool buttonstate = 0;
 
 char btchar;
-short btinput[18];
+byte btinput[23];
 
 unsigned short hardtimeramp = 3000; //Time for the light to dim on a hard on/off press  milliseconds
 unsigned long alarmtimeramp = 1200000; //Time for alarm light to reach max brightness
@@ -39,7 +39,7 @@ LightRamp ButtonRamp (1,&activeflag);
 LightRamp AdjustRamp (2,&activeflag);
 LightRamp AlarmRamp (3,&activeflag);
 
-short dimming = 4; //range is theoretically from 0-128, but limited to 4-124 due to timing limits
+volatile short dimming = 4; //range is theoretically from 0-128, but limited to 4-124 due to timing limits
 volatile short wavecounter = 0; //counter used in timing interrupt
 volatile boolean zerocross = 0; //Flag for zero crossing
 
@@ -106,7 +106,6 @@ void loop() {
     alarmlightstatus=true;
     activeflag = 3;
     AlarmRamp.Set(&dimming, 4, alarmtimeramp);
-    //LightRamp(dimming, 4, alarmtimeramp); //4 for max brightness
     buttonstate=0;
   }
   //Serial.print(CurrentTime.hour(),DEC); Serial.println(CurrentTime.minute(),DEC);
@@ -129,7 +128,7 @@ void loop() {
   if (BTSerial.available()){ 
     btchar = BTSerial.read();
     if (btchar == 'H'){
-      for( short i =0; i<18 && BTSerial.available(); i++) {
+      for( byte i =0; i<23 && BTSerial.available(); i++) {
          btchar = BTSerial.read();
          if (btchar >= '0' && btchar <='9')
             btinput[i] = btchar - '0';
@@ -158,21 +157,24 @@ void loop() {
   AlarmRamp.Update();
 }
 
-void SetTimes(short TimeInput[18]){
+void SetTimes(byte TimeInput[23]){
   //Sets current time and alarm time
-  short chour = TimeInput[6]*10 + TimeInput[7];
-  short cminute = TimeInput[8]*10 + TimeInput[9];
-  short csecond = TimeInput[10]*10 + TimeInput[11];
-  short cday = TimeInput[12]*10 + TimeInput[13];
-  short cmonth = TimeInput[14]*10 + TimeInput[15];
-  short cyear = 2000 + TimeInput[16]*10 + TimeInput[17];
+  byte chour = TimeInput[6]*10 + TimeInput[7];
+  byte cminute = TimeInput[8]*10 + TimeInput[9];
+  byte csecond = TimeInput[10]*10 + TimeInput[11];
+  byte cday = TimeInput[4]*10 + TimeInput[5];
+  byte cmonth = TimeInput[2]*10 + TimeInput[3];
+  byte cyear = 2000 + TimeInput[0]*10 + TimeInput[1];
   RTC.adjust( DateTime(cyear, cmonth, cday, chour, cminute, csecond) );
-  
-  alarmtime[currentday][0] = TimeInput[0]*10 + TimeInput[1];
-  alarmtime[currentday][1] = TimeInput[2]*10 + TimeInput[3];
-  //TimeInput[4:5] Is the alarm time seconds, which is not currently used.
 
-  for (short i = 0; i<0; i++) //clears the TimeInput / btinput array
+  for (byte i=0; i<7; i++){
+    if (TimeInput[i+12]){
+      alarmtime[i][0] = TimeInput [19]*10 + TimeInput[20];
+      alarmtime[i][1] = TimeInput [21]*10 + TimeInput[22];
+    }
+  }
+
+  for (byte i = 0; i<23; i++) //clears the TimeInput / btinput array
     TimeInput[i] = 0;
 }
 
