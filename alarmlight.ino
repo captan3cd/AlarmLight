@@ -125,7 +125,9 @@ void loop() {
   }
 
   //Reads in serial data. A proper input package should start with 'H', followed by the alarm time, current time and current date.
-  if (BTSerial.available()){ 
+  if (BTSerial.available() ){
+    delay(2300); //I'm not sure if it's the terminal app I'm using or the ble package being too many bytes (probably), 
+                 //but a delay is needed to allow the hc05 to receive the entire package.
     btchar = BTSerial.read();
     if (btchar == 'H'){
       for( byte i =0; i<23 && BTSerial.available(); i++) {
@@ -133,12 +135,15 @@ void loop() {
          if (btchar >= '0' && btchar <='9')
             btinput[i] = btchar - '0';
          else{
-          BTSerial.flush();
-          Serial.print("Invalid Input. Flushing...");
+          Serial.print("Invalid Input.");
           break;
          }
       }
       SetTimes(btinput);
+      for (int i=0; i<7; i++){
+        BTSerial.print(alarmtime[i][0]);
+        BTSerial.println(alarmtime[i][1]);        
+      }
     }
     
     else if (btchar == 'h'){ // a 'h' header specifies a slider adjustment to the light level
@@ -148,8 +153,9 @@ void loop() {
         AdjustRamp.Set(&dimming, 124 - tempbrightness * 1.2121, adjusttimeramp);
       }
     }
-    else
-      BTSerial.flush();
+    else{
+      Serial.println(btchar);
+    }
   }
 
   ButtonRamp.Update();
