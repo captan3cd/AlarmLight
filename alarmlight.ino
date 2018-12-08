@@ -1,19 +1,11 @@
 /*Slowly turn on a light at a scheduled time.
- * 
- * 
- */
+*/
 #include <Wire.h>
 #include <RTClib.h> //For working with the RTC module
 #include <SoftwareSerial.h> //Used for bluetooth serial
 #include <TimerOne.h> //Simplifies handling the hw timer
 #include "LightRamp.h" //Provides LightRamp class for dimming
 
-/*RTC Pins are 
- * Vin to 3-5V
- * GND to GND
- * SCL to Arduino SCL
- * SDA to Arduino SDA 
- */
 #define AC_LOAD A2
 #define PUSHPIN 2 //should be interupt pin, in this case, interupt 0
 #define txPin 5
@@ -22,21 +14,24 @@
 
 RTC_DS3231 RTC;
 
-char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}; 
+//Can be used in conjuction with the DateTime class' dayOfTheWeek() function
+unsigned short currentday = 0; //Used as a shorthand for the value of DateTime.dayOfTheWeek()
 
 DateTime CurrentTime;
 DateTime LastTime;
 SoftwareSerial BTSerial(rxPin, txPin);
 
-unsigned short alarmtime [2] = {12,1}; //hour and minute of alarm
+unsigned short alarmtime[7][2] = {{100,100},{6,20},{6,20},{6,20},{6,20},{6,20},{100,100}}; //hour and minute of alarm
+
 bool alarmlightstatus = false;  //tracks whether the alarm has already gone off
 volatile bool buttonstate = 0;
 
 char btchar;
-short btinput[18];
+byte btinput[23];
 
 unsigned short hardtimeramp = 3000; //Time for the light to dim on a hard on/off press  milliseconds
-unsigned long alarmtimeramp = 30000; //Time for alarm light to reach max brightness
+unsigned long alarmtimeramp = 1200000; //Time for alarm light to reach max brightness
 unsigned short adjusttimeramp = 500; //Time for light to change for a brightness adjustment
 
 short activeflag = 0; //Determines the active lightramp: 0=none, 1=button, 2=adjustment, 3=alarm
@@ -44,9 +39,10 @@ LightRamp ButtonRamp (1,&activeflag);
 LightRamp AdjustRamp (2,&activeflag);
 LightRamp AlarmRamp (3,&activeflag);
 
-short dimming = 64; //range is theoretically from 0-128, but limited to 4-124 due to timing limits
-volatile short wavecounter =0; //counter used in timing interrupt
+volatile short dimming = 4; //range is theoretically from 0-128, but limited to 4-124 due to timing limits
+volatile short wavecounter = 0; //counter used in timing interrupt
 volatile boolean zerocross = 0; //Flag for zero crossing
+
 short freqstep = 65;  //For 50Hz, use 75
 // It is calculated based on the frequency of your voltage supply (50Hz or 60Hz)
 // and the number of brightness steps you want. 
@@ -59,8 +55,6 @@ short freqstep = 65;  //For 50Hz, use 75
 //
 // (120 Hz=8333uS) / 128 brightness steps = 65 uS / brightness step
 // (100Hz=10000uS) / 128 steps = 75uS/step
-
-
 
 void setup() {
   Serial.begin(9600);
@@ -79,6 +73,10 @@ void setup() {
     // January 21, 2014 at 3am you would call:
     // RTC.adjust(DateTime(2014, 1, 21, 3, 0, 0));
   }
+
+  LastTime = RTC.now(); //Lasttime needs to be initiated, otherwise the first pass through the main loop thinks there is a day change
+  currentday = LastTime.dayOfTheWeek();
+  
   pinMode(AC_LOAD,OUTPUT);
   pinMode(PUSHPIN,INPUT);
   pinMode(ZX, INPUT);
@@ -87,7 +85,6 @@ void setup() {
   attachInterrupt(1,ZeroCross,RISING);
   Timer1.initialize(freqstep);
   Timer1.attachInterrupt(DimCheck,freqstep);
-
 }
 
 void loop() {
@@ -97,17 +94,18 @@ void loop() {
   }
   
   CurrentTime = RTC.now();
-
-  //If the day has changed, reset the alarm flag so it can go off again.
-  if (abs(CurrentTime.day()-LastTime.day()))
+  
+  //If the day has changed, reset the alarm flag so it can go off again. Also increment the day counter
+  if (abs(CurrentTime.day()-LastTime.day())){
     alarmlightstatus=false;
+    currentday = CurrentTime.dayOfTheWeek(); // Update the day variable
+  }    
 
-  //If the current time is past the alarm time, and the light is less than half max brightness
-  if (CurrentTime.hour()>=alarmtime[0] && CurrentTime.minute()>=alarmtime[1] && dimming>=64 && !alarmlightstatus){
+  //If the current time is past the alarm time, and the light is less than half max brightness, and the alarm is set / valid
+  if (CurrentTime.hour()>=alarmtime[currentday][0] && CurrentTime.minute()>=alarmtime[currentday][1] && dimming>=64 && alarmtime[currentday][0]<24 &&!alarmlightstatus){
     alarmlightstatus=true;
     activeflag = 3;
     AlarmRamp.Set(&dimming, 4, alarmtimeramp);
-    //LightRamp(dimming, 4, alarmtimeramp); //4 for max brightness
     buttonstate=0;
   }
   //Serial.print(CurrentTime.hour(),DEC); Serial.println(CurrentTime.minute(),DEC);
@@ -126,20 +124,26 @@ void loop() {
     }
   }
 
-  if (BTSerial.available()){  //Reads in serial data. A proper input package should start with 'H', followed by the alarm time, current time and current date.
+  //Reads in serial data. A proper input package should start with 'H', followed by the alarm time, current time and current date.
+  if (BTSerial.available() ){
+    delay(2300); //I'm not sure if it's the terminal app I'm using or the ble package being too many bytes (probably), 
+                 //but a delay is needed to allow the hc05 to receive the entire package.
     btchar = BTSerial.read();
     if (btchar == 'H'){
-      for( short i =0; i<18 && BTSerial.available(); i++) {
+      for( byte i =0; i<23 && BTSerial.available(); i++) {
          btchar = BTSerial.read();
          if (btchar >= '0' && btchar <='9')
             btinput[i] = btchar - '0';
          else{
-          BTSerial.flush();
-          Serial.print("Invalid Input. Flushing...");
+          Serial.print("Invalid Input.");
           break;
          }
       }
       SetTimes(btinput);
+      for (int i=0; i<7; i++){
+        BTSerial.print(alarmtime[i][0]);
+        BTSerial.println(alarmtime[i][1]);        
+      }
     }
     
     else if (btchar == 'h'){ // a 'h' header specifies a slider adjustment to the light level
@@ -149,8 +153,9 @@ void loop() {
         AdjustRamp.Set(&dimming, 124 - tempbrightness * 1.2121, adjusttimeramp);
       }
     }
-    else
-      BTSerial.flush();
+    else{
+      Serial.println(btchar);
+    }
   }
 
   ButtonRamp.Update();
@@ -158,21 +163,24 @@ void loop() {
   AlarmRamp.Update();
 }
 
-void SetTimes(short TimeInput[18]){
+void SetTimes(byte TimeInput[23]){
   //Sets current time and alarm time
-  short chour = TimeInput[6]*10 + TimeInput[7];
-  short cminute = TimeInput[8]*10 + TimeInput[9];
-  short csecond = TimeInput[10]*10 + TimeInput[11];
-  short cday = TimeInput[12]*10 + TimeInput[13];
-  short cmonth = TimeInput[14]*10 + TimeInput[15];
-  short cyear = 2000 + TimeInput[16]*10 + TimeInput[17];
+  byte chour = TimeInput[6]*10 + TimeInput[7];
+  byte cminute = TimeInput[8]*10 + TimeInput[9];
+  byte csecond = TimeInput[10]*10 + TimeInput[11];
+  byte cday = TimeInput[4]*10 + TimeInput[5];
+  byte cmonth = TimeInput[2]*10 + TimeInput[3];
+  byte cyear = 2000 + TimeInput[0]*10 + TimeInput[1];
   RTC.adjust( DateTime(cyear, cmonth, cday, chour, cminute, csecond) );
-  
-  alarmtime[0] = TimeInput[0]*10 + TimeInput[1];
-  alarmtime[1] = TimeInput[2]*10 + TimeInput[3];
-  //TimeInput[4:5] Is the alarm time seconds, which is not currently used.
 
-  for (short i = 0; i<0; i++) //clears the TimeInput / btinput array
+  for (byte i=0; i<7; i++){
+    if (TimeInput[i+12]){
+      alarmtime[i][0] = TimeInput [19]*10 + TimeInput[20];
+      alarmtime[i][1] = TimeInput [21]*10 + TimeInput[22];
+    }
+  }
+
+  for (byte i = 0; i<23; i++) //clears the TimeInput / btinput array
     TimeInput[i] = 0;
 }
 

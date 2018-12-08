@@ -2,12 +2,12 @@
 #include <Arduino.h>
 #include "LightRamp.h"
 
-LightRamp::LightRamp(short f, short* a ){
+LightRamp::LightRamp(short f, volatile short* a ){
   flag = f;
   activeflag = a;
 }
 
-void LightRamp::Set(short* cbright, short tbright, unsigned short ramp){ //the cbright param should be passed with &variable
+void LightRamp::Set(volatile short* cbright, short tbright, unsigned short ramp){ //the cbright param should be passed with &variable
   targetbright = tbright;
   beginbright = *cbright;
   currentbright = cbright;
