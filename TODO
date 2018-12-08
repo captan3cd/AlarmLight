@@ -3,5 +3,3 @@
 -Remove software serial utilization.
 -Troubleshoot the occasional issue with the button interrupt somehow affecting the timing of the lightramps.
 -Explore the delay() line in the bt input block
--short->byte conversion
--Cleaning up magic numbers
