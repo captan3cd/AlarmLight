@@ -8,21 +8,24 @@
 
 #define AC_LOAD A2
 #define PUSHPIN 2 //should be interupt pin, in this case, interupt 0
-#define txPin 5
-#define rxPin 4
+#define TXPIN 5
+#define RXPIN 4
 #define ZX 3 //Zero crossing detector, should be an interput pin, in this case, interupt 1
+
+#define MAXBRIGHT 4
+#define MINBRIGHT 124
 
 RTC_DS3231 RTC;
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}; 
 //Can be used in conjuction with the DateTime class' dayOfTheWeek() function
-unsigned short currentday = 0; //Used as a shorthand for the value of DateTime.dayOfTheWeek()
+byte currentday = 0; //Used as a shorthand for the value of DateTime.dayOfTheWeek()
 
 DateTime CurrentTime;
 DateTime LastTime;
-SoftwareSerial BTSerial(rxPin, txPin);
+SoftwareSerial BTSerial(RXPIN, TXPIN);
 
-unsigned short alarmtime[7][2] = {{100,100},{6,20},{6,20},{6,20},{6,20},{6,20},{100,100}}; //hour and minute of alarm
+byte alarmtime[7][2] = {{100,100},{6,20},{6,20},{6,20},{6,20},{6,20},{100,100}}; //hour and minute of alarm
 
 bool alarmlightstatus = false;  //tracks whether the alarm has already gone off
 volatile bool buttonstate = 0;
@@ -30,20 +33,20 @@ volatile bool buttonstate = 0;
 char btchar;
 byte btinput[23];
 
-unsigned short hardtimeramp = 3000; //Time for the light to dim on a hard on/off press  milliseconds
+unsigned short hardtimeramp = 2000; //Time for the light to dim on a hard on/off press  milliseconds
 unsigned long alarmtimeramp = 1200000; //Time for alarm light to reach max brightness
 unsigned short adjusttimeramp = 500; //Time for light to change for a brightness adjustment
 
-short activeflag = 0; //Determines the active lightramp: 0=none, 1=button, 2=adjustment, 3=alarm
+byte activeflag = 0; //Determines the active lightramp: 0=none, 1=button, 2=adjustment, 3=alarm
 LightRamp ButtonRamp (1,&activeflag);
 LightRamp AdjustRamp (2,&activeflag);
 LightRamp AlarmRamp (3,&activeflag);
 
-volatile short dimming = 4; //range is theoretically from 0-128, but limited to 4-124 due to timing limits
-volatile short wavecounter = 0; //counter used in timing interrupt
+volatile byte dimming = MAXBRIGHT; //range is theoretically from 0-128, but limited to 4-124 due to timing limits
+volatile byte wavecounter = 0; //counter used in timing interrupt
 volatile boolean zerocross = 0; //Flag for zero crossing
 
-short freqstep = 65;  //For 50Hz, use 75
+byte freqstep = 65;  //For 50Hz, use 75
 // It is calculated based on the frequency of your voltage supply (50Hz or 60Hz)
 // and the number of brightness steps you want. 
 // 
@@ -102,10 +105,10 @@ void loop() {
   }    
 
   //If the current time is past the alarm time, and the light is less than half max brightness, and the alarm is set / valid
-  if (CurrentTime.hour()>=alarmtime[currentday][0] && CurrentTime.minute()>=alarmtime[currentday][1] && dimming>=64 && alarmtime[currentday][0]<24 &&!alarmlightstatus){
+  if (CurrentTime.hour()>=alarmtime[currentday][0] && CurrentTime.minute()>=alarmtime[currentday][1] && dimming>=MINBRIGHT/2 && alarmtime[currentday][0]<24 &&!alarmlightstatus){
     alarmlightstatus=true;
     activeflag = 3;
-    AlarmRamp.Set(&dimming, 4, alarmtimeramp);
+    AlarmRamp.Set(&dimming, MAXBRIGHT, alarmtimeramp);
     buttonstate=0;
   }
   //Serial.print(CurrentTime.hour(),DEC); Serial.println(CurrentTime.minute(),DEC);
@@ -114,12 +117,12 @@ void loop() {
   
   if (buttonstate!=0){
     buttonstate = 0;
-    if (dimming<124){
-      ButtonRamp.Set(&dimming, 124, hardtimeramp);
+    if (dimming<MINBRIGHT){
+      ButtonRamp.Set(&dimming, MINBRIGHT, hardtimeramp);
       activeflag = 1;
     }
     else{
-      ButtonRamp.Set(&dimming, 4, hardtimeramp);
+      ButtonRamp.Set(&dimming, MAXBRIGHT, hardtimeramp);
       activeflag = 1;
     }
   }
@@ -133,14 +136,14 @@ void loop() {
       for( byte i =0; i<23 && BTSerial.available(); i++) {
          btchar = BTSerial.read();
          if (btchar >= '0' && btchar <='9')
-            btinput[i] = btchar - '0';
+            btinput[i] = btchar - '0';  //converts to an int from a char
          else{
           Serial.print("Invalid Input.");
           break;
          }
       }
       SetTimes(btinput);
-      for (int i=0; i<7; i++){
+      for (byte i=0; i<7; i++){
         BTSerial.print(alarmtime[i][0]);
         BTSerial.println(alarmtime[i][1]);        
       }
@@ -148,9 +151,11 @@ void loop() {
     
     else if (btchar == 'h'){ // a 'h' header specifies a slider adjustment to the light level
       btchar = BTSerial.read();
-      short tempbrightness = (btchar - '0')*10 + (BTSerial.read() - '0'); //This is a brightness percentage from 0 to 99.
+      byte tempbrightness = (btchar - '0')*10 + (BTSerial.read() - '0'); //This is a brightness percentage from 0 to 99.
       if (tempbrightness <=100 && tempbrightness >=0){
-        AdjustRamp.Set(&dimming, 124 - tempbrightness * 1.2121, adjusttimeramp);
+        Serial.println((byte)(MINBRIGHT - tempbrightness * 1.2121));
+        AdjustRamp.Set(&dimming, (byte)(MINBRIGHT - tempbrightness * 1.2121), adjusttimeramp);
+        activeflag = 2; //set flag
       }
     }
     else{
