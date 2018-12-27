@@ -1,7 +1,7 @@
 This document lists the hardware and connection used for creating and testing this project.
 
 Harware
-RobotDyn Nano V3 arduino clone
+Teensy LC
 RobotDyn Light Dimmer Module
 HC-05 bluetooth module
 DS3231 RTC module
@@ -11,25 +11,24 @@ Push button
 Connections
 
 Arduino - Light Dimmer
-5V - VCC
+3V - VCC
 GND - GND
-Pin 3 (interupt pin 1) - ZC
-Pin A2 - PWM
+Pin 2 (interupt pin 2) - ZC
+Pin 1 - PWM
 
 Arduino - HC-05
-Pin 5 - 1K resistor - RXD 
-	RXD then also connects to GND by a 2K resistor
-Pin 4 - TXD
+Pin 10 - RXD
+Pin 9 - TXD
 GND - GND
-5V - VCC
+3V - VCC
 
 Arduino - RTC
-A5 (Nano's SCL pin)  - SCL
-A4 (Nano's SDA pin) - SDA
+22 (SCL1 pin)  - SCL
+23 (SDA1 pin) - SDA
 GND - GND
-5V - Vin
+3V - Vin
 
 Arduino - Push Button
-Pin 2 (interrupt 0) - top left button pin
+Pin 14 (interrupt 14) - top left button pin
 GND - 10K resistor - top right button pin
-5V - bottom right button pin
+3V - bottom right button pin

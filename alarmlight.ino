@@ -6,11 +6,11 @@
 #include <TimerOne.h> //Simplifies handling the hw timer
 #include "LightRamp.h" //Provides LightRamp class for dimming
 
-#define AC_LOAD A2
-#define PUSHPIN 2 //should be interupt pin, in this case, interupt 0
-#define TXPIN 5
-#define RXPIN 4
-#define ZX 3 //Zero crossing detector, should be an interput pin, in this case, interupt 1
+#define AC_LOAD 1
+#define PUSHPIN 14 //should be interupt pin, in this case, interupt 0
+#define TXPIN 10
+#define RXPIN 9
+#define ZX 2 //Zero crossing detector, should be an interput pin, in this case, interupt 1
 
 #define MAXBRIGHT 4
 #define MINBRIGHT 124
@@ -34,7 +34,7 @@ char btchar;
 byte btinput[23];
 
 unsigned short hardtimeramp = 2000; //Time for the light to dim on a hard on/off press  milliseconds
-unsigned long alarmtimeramp = 1200000; //Time for alarm light to reach max brightness
+unsigned long alarmtimeramp = 1800000; //Time for alarm light to reach max brightness
 unsigned short adjusttimeramp = 500; //Time for light to change for a brightness adjustment
 
 byte activeflag = 0; //Determines the active lightramp: 0=none, 1=button, 2=adjustment, 3=alarm
@@ -84,8 +84,8 @@ void setup() {
   pinMode(PUSHPIN,INPUT);
   pinMode(ZX, INPUT);
 
-  attachInterrupt(0,ButtonPress,RISING);
-  attachInterrupt(1,ZeroCross,RISING);
+  attachInterrupt(PUSHPIN,ButtonPress,RISING);
+  attachInterrupt(ZX,ZeroCross,RISING);
   Timer1.initialize(freqstep);
   Timer1.attachInterrupt(DimCheck,freqstep);
 }
@@ -103,9 +103,11 @@ void loop() {
     alarmlightstatus=false;
     currentday = CurrentTime.dayOfTheWeek(); // Update the day variable
   }    
-
+  //Serial.println(CurrentTime.hour()); Serial.println(CurrentTime.minute()); Serial.println(currentday);
+  
   //If the current time is past the alarm time, and the light is less than half max brightness, and the alarm is set / valid
   if (CurrentTime.hour()>=alarmtime[currentday][0] && CurrentTime.minute()>=alarmtime[currentday][1] && dimming>=MINBRIGHT/2 && alarmtime[currentday][0]<24 &&!alarmlightstatus){
+    Serial.println("triggered");
     alarmlightstatus=true;
     activeflag = 3;
     AlarmRamp.Set(&dimming, MAXBRIGHT, alarmtimeramp);
