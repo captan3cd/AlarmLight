@@ -9,12 +9,10 @@ The following libraries need to be added to Arduino's library folder.
 
 DS3232RTC <https://github.com/JChristensen/DS3232RTC>
 PJRC Time library <https://github.com/PaulStoffregen/Time>
-TimerOne <https://www.arduinolibraries.info/libraries/timer-one>
 
 Attributions
 Code snippits are used and modified from Ryan McLaughlin and diy_bloke's Light Dimmer code. <https://www.instructables.com/id/Arduino-controlled-light-dimmer-The-circuit> <https://forum.arduino.cc/index.php?topic=6970.0>.
 
-The DS3232RTC library by JChristensen, the Time library by Paul Stoffregen, and the TimerOne library (Tane, Despatis, Polli, Clemens, Stoffregen) are utilized. 
-
+The DS3232RTC library by JChristensen and the Time library by Paul Stoffregen are utilized.
 
 

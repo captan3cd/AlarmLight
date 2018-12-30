@@ -2,7 +2,6 @@
 */
 #include <Wire.h>
 #include <DS3232RTC.h> //For working with the RTC module
-#include <TimerOne.h> //Simplifies handling the hw timer
 #include "LightRamp.h" //Provides LightRamp class for dimming
 
 #define AC_LOAD 1
@@ -14,6 +13,7 @@
 #define MAXBRIGHT 4
 #define MINBRIGHT 124
 
+IntervalTimer ZXTimer; //Timer object that manages the firing of the triac
 DS3232RTC RTC(true); //initialize the rtc object and wire.h instance
                      //If using a teensy or other board with multiple sda/scl pins, use the Wire.setSDA/SCL functions
 
@@ -93,8 +93,9 @@ void setup() {
 
   attachInterrupt(PUSHPIN,ButtonPress,RISING);
   attachInterrupt(ZX,ZeroCross,RISING);
-  Timer1.initialize(freqstep);
-  Timer1.attachInterrupt(DimCheck,freqstep);
+  ZXTimer.begin(DimCheck, freqstep);
+  ZXTimer.priority (10); //0-255, lower is higher priority
+  
 }
 
 void loop() {  
