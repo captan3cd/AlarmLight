@@ -4,3 +4,4 @@
 -Explore the delay() line in the bt input block
 -Split alarm and current time packets
 -fix bug where h0 to h4 packets don't change the brightness properly
+-Save alarm params in eeprom

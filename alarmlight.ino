@@ -3,12 +3,13 @@
 #include <Wire.h>
 #include <DS3232RTC.h> //For working with the RTC module
 #include "LightRamp.h" //Provides LightRamp class for dimming
+#include "time_to_system_time.h" //Used for converting __time__ and __date__ into time_t
 
 #define AC_LOAD 1
-#define PUSHPIN 14 //should be interupt pin, in this case, interupt 0
+#define PUSHPIN 14 //should be interupt pin, in this case, interupt 14
 #define TXPIN 10
 #define RXPIN 9
-#define ZX 2 //Zero crossing detector, should be an interput pin, in this case, interupt 1
+#define ZX 2 //Zero crossing detector, should be an interput pin, in this case, interupt 2
 
 #define MAXBRIGHT 4
 #define MINBRIGHT 124
@@ -62,27 +63,30 @@ void setup() {
   Serial.begin(9600);   //Serial refers to the usb serial ports
   Serial2.begin(9600);  //Serial2 are hardware serial pins 9/10 on teensy
 
-  setSyncProvider(RTC.get); //Syncs the arduino's internal clock with the ds3232
-  if (timeStatus() != timeSet){
-    Serial.println("RTC sync failure");
+  if (!RTC.get()){
+    Serial.println("RTC Issue");
   }
-    
-  //Probably should be a fallback method here using __time__ and __day__
-
+  setSyncProvider(RTC.get); //Syncs the arduino's internal clock with the ds3232
+  if (timeStatus() == timeSet){
+    Serial.println("Reading time from RTC.");
+  }
   
-//  while (! RTC.begin()) {
-//    Serial.println("Couldn't find RTC");
-//    delay(5000);
-//  }
-//
-//  if (RTC.lostPower()) {
-//    Serial.println("RTC lost power, lets set the time!");
-//    // following line sets the RTC to the date & time this sketch was compiled
-//    RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
-//    // This line sets the RTC with an explicit date & time, for example to set
-//    // January 21, 2014 at 3am you would call:
-//    // RTC.adjust(DateTime(2014, 1, 21, 3, 0, 0));
-//  }
+  else {
+    Serial.println("Setting time by compile time");
+    setTime(cvt_date(__DATE__,__TIME__)); //Sets the system clock
+    RTC.set(now()); //Sets the rtc based on the system clock
+  }
+  //I miss << :(
+  Serial.print("System time is ");
+  Serial.print(hour());
+  Serial.print(minute());
+  Serial.print(second());
+  Serial.print(" ");
+  Serial.print(day());
+  Serial.print(" ");
+  Serial.print(month());
+  Serial.print(" ");
+  Serial.println(year());
 
   LastTime = now(); //Lasttime needs to be initiated, otherwise the first pass through the main loop thinks there is a day change
   currentday = weekday(LastTime);
@@ -116,7 +120,6 @@ void loop() {
     AlarmRamp.Set(&dimming, MAXBRIGHT, alarmtimeramp);
     buttonstate=0;
   }
-  //Serial.print(CurrentTime.hour(),DEC); Serial.println(CurrentTime.minute(),DEC);
 
   LastTime = CurrentTime;
   
@@ -183,7 +186,6 @@ void SetTimes(byte TimeInput[23]){
   byte cyear = 2000 + TimeInput[0]*10 + TimeInput[1];
   setTime(chour,cminute,csecond,cday,cmonth,cyear); //Sets the system clock
   RTC.set(now()); //Sets the rtc based on the system clock
-  //RTC.adjust( DateTime(cyear, cmonth, cday, chour, cminute, csecond) );
 
   for (byte i=0; i<7; i++){
     if (TimeInput[i+12]){
