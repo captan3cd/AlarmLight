@@ -1,7 +1,7 @@
 /*Slowly turn on a light at a scheduled time.
 */
 #include <Wire.h>
-#include <DS3232RTC.h> //For working with the RTC module
+#include "DS3232RTC.h" //For working with the RTC module
 #include "LightRamp.h" //Provides LightRamp class for dimming
 #include "time_to_system_time.h" //Used for converting __time__ and __date__ into time_t
 
@@ -10,6 +10,8 @@
 #define TXPIN 10
 #define RXPIN 9
 #define ZX 2 //Zero crossing detector, should be an interput pin, in this case, interupt 2
+
+#define RTC_STATUS 0x0F //The status register of the ds3232. Used here for checking the power status.
 
 #define MAXBRIGHT 4
 #define MINBRIGHT 124
@@ -63,23 +65,28 @@ void setup() {
   Serial.begin(9600);   //Serial refers to the usb serial ports
   Serial2.begin(9600);  //Serial2 are hardware serial pins 9/10 on teensy
 
-  if (!RTC.get()){
-    Serial.println("RTC Issue");
-  }
-  setSyncProvider(RTC.get); //Syncs the arduino's internal clock with the ds3232
-  if (timeStatus() == timeSet){
-    Serial.println("Reading time from RTC.");
-  }
+  //Check if the RTC has lost power previously, and if so set the time based on the compile time.
+  //Code is based on Adafruit's RTClib lostPower() function since DS3232RTC.h doesn't include a similar function.
+  //readRTC(RTC_STATUS) returns the byte value of the RTC_STATUS register.
+  // >>7 then shifts the bits 7 places to the right, leaving only the OSF bit, which is a value of 1 if power was lost
   
-  else {
+  if (RTC.readRTC(RTC_STATUS)>>7){
     Serial.println("Setting time by compile time");
     setTime(cvt_date(__DATE__,__TIME__)); //Sets the system clock
     RTC.set(now()); //Sets the rtc based on the system clock
   }
+  
+  setSyncProvider(RTC.get); //Syncs the arduino's internal clock with the ds3232
+  if (timeStatus() != timeSet){
+    Serial.println("Time Sync Error");
+  }
+  
   //I miss << :(
   Serial.print("System time is ");
   Serial.print(hour());
+  Serial.print(" ");
   Serial.print(minute());
+  Serial.print(" ");
   Serial.print(second());
   Serial.print(" ");
   Serial.print(day());

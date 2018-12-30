@@ -28,14 +28,30 @@
 time_t cvt_date(char const *date, char const *time)
 {
     char s_month[5];
-    int year;
+    short tyear, tday;
+    unsigned short hour, minute, second;
     tmElements_t t;
     static const char month_names[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
-    sscanf(date, "%s %d %d", s_month, &t.Day, &year);
-    sscanf(time, "%2d %*c %2d %*c %2d", &t.Hour, &t.Minute, &t.Second);
+    
+    sscanf(date, "%s %2hd %4hd", s_month, &tday, &tyear);
+//    Serial.println(date);
+//    Serial.println(s_month);
+//    Serial.println(t.Day);
+//    Serial.println(tyear);
+    sscanf(time, "%2hd %*c %2hd %*c %2hd", &hour, &minute, &second);
     // Find where is s_month in month_names. Deduce month value.
-    t.Month = (strstr(month_names, s_month) - month_names) / 3 + 1;    
-    t.Year = year - 1900;    
+    t.Month = (strstr(month_names, s_month) - month_names) / 3 + 1;   
+    t.Day = tday; 
+    t.Year = tyear - 1970;
+    t.Hour = hour;
+    t.Minute = minute;
+    t.Second = second;
+//    Serial.println(t.Hour);
+//    Serial.println(t.Minute);
+//    Serial.println(t.Second);
+//    Serial.println(t.Day);
+//    Serial.println(t.Month);
+//    Serial.println(t.Year);   
     return makeTime(t);
 }
 
