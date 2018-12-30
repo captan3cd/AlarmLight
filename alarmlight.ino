@@ -2,7 +2,6 @@
 */
 #include <Wire.h>
 #include <DS3232RTC.h> //For working with the RTC module
-#include <SoftwareSerial.h> //Used for bluetooth serial
 #include <TimerOne.h> //Simplifies handling the hw timer
 #include "LightRamp.h" //Provides LightRamp class for dimming
 
@@ -24,7 +23,6 @@ byte currentday = 0; //Used as a shorthand for the value of DateTime.dayOfTheWee
 
 time_t CurrentTime;
 time_t LastTime;
-SoftwareSerial BTSerial(RXPIN, TXPIN);
 
 byte alarmtime[7][2] = {{100,100},{6,20},{6,20},{6,20},{6,20},{6,20},{100,100}}; //hour and minute of alarm
 
@@ -61,8 +59,8 @@ byte freqstep = 65;  //For 50Hz, use 75
 // (100Hz=10000uS) / 128 steps = 75uS/step
 
 void setup() {
-  Serial.begin(9600);
-  BTSerial.begin(9600);
+  Serial.begin(9600);   //Serial refers to the usb serial ports
+  Serial2.begin(9600);  //Serial2 are hardware serial pins 9/10 on teensy
 
   setSyncProvider(RTC.get); //Syncs the arduino's internal clock with the ds3232
   if (timeStatus() != timeSet){
@@ -134,13 +132,13 @@ void loop() {
   }
 
   //Reads in serial data. A proper input package should start with 'H', followed by the alarm time, current time and current date.
-  if (BTSerial.available() ){
+  if (Serial2.available() ){
     delay(2300); //I'm not sure if it's the terminal app I'm using or the ble package being too many bytes (probably), 
                  //but a delay is needed to allow the hc05 to receive the entire package.
-    btchar = BTSerial.read();
+    btchar = Serial2.read();
     if (btchar == 'H'){
-      for( byte i =0; i<23 && BTSerial.available(); i++) {
-         btchar = BTSerial.read();
+      for( byte i =0; i<23 && Serial2.available(); i++) {
+         btchar = Serial2.read();
          if (btchar >= '0' && btchar <='9')
             btinput[i] = btchar - '0';  //converts to an int from a char
          else{
@@ -150,14 +148,14 @@ void loop() {
       }
       SetTimes(btinput);
       for (byte i=0; i<7; i++){
-        BTSerial.print(alarmtime[i][0]);
-        BTSerial.println(alarmtime[i][1]);        
+        Serial2.print(alarmtime[i][0]);
+        Serial2.println(alarmtime[i][1]);        
       }
     }
     
     else if (btchar == 'h'){ // a 'h' header specifies a slider adjustment to the light level
-      btchar = BTSerial.read();
-      byte tempbrightness = (btchar - '0')*10 + (BTSerial.read() - '0'); //This is a brightness percentage from 0 to 99.
+      btchar = Serial2.read();
+      byte tempbrightness = (btchar - '0')*10 + (Serial2.read() - '0'); //This is a brightness percentage from 0 to 99.
       if (tempbrightness <=100 && tempbrightness >=0){
         Serial.println((byte)(MINBRIGHT - tempbrightness * 1.2121));
         AdjustRamp.Set(&dimming, (byte)(MINBRIGHT - tempbrightness * 1.2121), adjusttimeramp);

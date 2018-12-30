@@ -1,5 +1,6 @@
 -Change the on/off push button to a touchpad capable of dimming.
 -Explore using a wifi module instead of bluetooth, for future smart home hub integration.
--Remove software serial utilization.
 -Troubleshoot the occasional issue with the button interrupt somehow affecting the timing of the lightramps.
 -Explore the delay() line in the bt input block
+-Split alarm and current time packets
+-fix bug where h0 to h4 packets don't change the brightness properly
