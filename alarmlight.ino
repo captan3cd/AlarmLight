@@ -1,7 +1,7 @@
 /*Slowly turn on a light at a scheduled time.
 */
 #include <Wire.h>
-#include <RTClib.h> //For working with the RTC module
+#include <DS3232RTC.h> //For working with the RTC module
 #include <SoftwareSerial.h> //Used for bluetooth serial
 #include <TimerOne.h> //Simplifies handling the hw timer
 #include "LightRamp.h" //Provides LightRamp class for dimming
@@ -15,14 +15,15 @@
 #define MAXBRIGHT 4
 #define MINBRIGHT 124
 
-RTC_DS3231 RTC;
+DS3232RTC RTC(true); //initialize the rtc object and wire.h instance
+                     //If using a teensy or other board with multiple sda/scl pins, use the Wire.setSDA/SCL functions
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}; 
 //Can be used in conjuction with the DateTime class' dayOfTheWeek() function
 byte currentday = 0; //Used as a shorthand for the value of DateTime.dayOfTheWeek()
 
-DateTime CurrentTime;
-DateTime LastTime;
+time_t CurrentTime;
+time_t LastTime;
 SoftwareSerial BTSerial(RXPIN, TXPIN);
 
 byte alarmtime[7][2] = {{100,100},{6,20},{6,20},{6,20},{6,20},{6,20},{100,100}}; //hour and minute of alarm
@@ -63,22 +64,30 @@ void setup() {
   Serial.begin(9600);
   BTSerial.begin(9600);
 
-  while (! RTC.begin()) {
-    Serial.println("Couldn't find RTC");
-    delay(5000);
+  setSyncProvider(RTC.get); //Syncs the arduino's internal clock with the ds3232
+  if (timeStatus() != timeSet){
+    Serial.println("RTC sync failure");
   }
+    
+  //Probably should be a fallback method here using __time__ and __day__
 
-  if (RTC.lostPower()) {
-    Serial.println("RTC lost power, lets set the time!");
-    // following line sets the RTC to the date & time this sketch was compiled
-    RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    // This line sets the RTC with an explicit date & time, for example to set
-    // January 21, 2014 at 3am you would call:
-    // RTC.adjust(DateTime(2014, 1, 21, 3, 0, 0));
-  }
+  
+//  while (! RTC.begin()) {
+//    Serial.println("Couldn't find RTC");
+//    delay(5000);
+//  }
+//
+//  if (RTC.lostPower()) {
+//    Serial.println("RTC lost power, lets set the time!");
+//    // following line sets the RTC to the date & time this sketch was compiled
+//    RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
+//    // This line sets the RTC with an explicit date & time, for example to set
+//    // January 21, 2014 at 3am you would call:
+//    // RTC.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+//  }
 
-  LastTime = RTC.now(); //Lasttime needs to be initiated, otherwise the first pass through the main loop thinks there is a day change
-  currentday = LastTime.dayOfTheWeek();
+  LastTime = now(); //Lasttime needs to be initiated, otherwise the first pass through the main loop thinks there is a day change
+  currentday = weekday(LastTime);
   
   pinMode(AC_LOAD,OUTPUT);
   pinMode(PUSHPIN,INPUT);
@@ -90,23 +99,18 @@ void setup() {
   Timer1.attachInterrupt(DimCheck,freqstep);
 }
 
-void loop() {
-  if (RTC.lostPower()){
-    //Error handling if the RTC loses power
-    Serial.println("Please reset the time!");
-  }
-  
-  CurrentTime = RTC.now();
+void loop() {  
+  CurrentTime = now();
   
   //If the day has changed, reset the alarm flag so it can go off again. Also increment the day counter
-  if (abs(CurrentTime.day()-LastTime.day())){
+  if (abs(day(CurrentTime)-day(LastTime))){
     alarmlightstatus=false;
-    currentday = CurrentTime.dayOfTheWeek(); // Update the day variable
+    currentday = weekday(CurrentTime); // Update the day variable
   }    
   //Serial.println(CurrentTime.hour()); Serial.println(CurrentTime.minute()); Serial.println(currentday);
   
   //If the current time is past the alarm time, and the light is less than half max brightness, and the alarm is set / valid
-  if (CurrentTime.hour()>=alarmtime[currentday][0] && CurrentTime.minute()>=alarmtime[currentday][1] && dimming>=MINBRIGHT/2 && alarmtime[currentday][0]<24 &&!alarmlightstatus){
+  if (hour(CurrentTime)>=alarmtime[currentday-1][0] && minute(CurrentTime)>=alarmtime[currentday-1][1] && dimming>=MINBRIGHT/2 && alarmtime[currentday-1][0]<24 &&!alarmlightstatus){
     Serial.println("triggered");
     alarmlightstatus=true;
     activeflag = 3;
@@ -178,7 +182,9 @@ void SetTimes(byte TimeInput[23]){
   byte cday = TimeInput[4]*10 + TimeInput[5];
   byte cmonth = TimeInput[2]*10 + TimeInput[3];
   byte cyear = 2000 + TimeInput[0]*10 + TimeInput[1];
-  RTC.adjust( DateTime(cyear, cmonth, cday, chour, cminute, csecond) );
+  setTime(chour,cminute,csecond,cday,cmonth,cyear); //Sets the system clock
+  RTC.set(now()); //Sets the rtc based on the system clock
+  //RTC.adjust( DateTime(cyear, cmonth, cday, chour, cminute, csecond) );
 
   for (byte i=0; i<7; i++){
     if (TimeInput[i+12]){

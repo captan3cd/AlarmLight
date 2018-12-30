@@ -23,8 +23,8 @@ GND - GND
 3V - VCC
 
 Arduino - RTC
-22 (SCL1 pin)  - SCL
-23 (SDA1 pin) - SDA
+19 (SCL0 pin)  - SCL
+18 (SDA0 pin) - SDA
 GND - GND
 3V - Vin
 
