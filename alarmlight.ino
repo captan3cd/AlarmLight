@@ -1,7 +1,8 @@
 /*Slowly turn on a light at a scheduled time.
 */
-#include <Wire.h>
-#include "DS3232RTC.h" //For working with the RTC module
+
+#include <EEPROM.h>
+#include <DS3232RTC.h> //For working with the RTC module
 #include "LightRamp.h" //Provides LightRamp class for dimming
 #include "time_to_system_time.h" //Used for converting __time__ and __date__ into time_t
 
@@ -15,6 +16,7 @@
 
 #define MAXBRIGHT 4
 #define MINBRIGHT 124
+#define MEMORYON //Select whether the previous alarm values are used or reset on power up.
 
 IntervalTimer ZXTimer; //Timer object that manages the firing of the triac
 DS3232RTC RTC(true); //initialize the rtc object and wire.h instance
@@ -62,9 +64,17 @@ byte freqstep = 65;  //For 50Hz, use 75
 // (100Hz=10000uS) / 128 steps = 75uS/step
 
 void setup() {
-  Serial.begin(9600);   //Serial refers to the usb serial ports
+  Serial.begin(9600);   //Serial refers to the usb serial port
   Serial2.begin(9600);  //Serial2 are hardware serial pins 9/10 on teensy
 
+  #ifdef MEMORYON  //Read the alarmtime values from memory
+  for (byte i = 1; i<=14; i+=2){
+    alarmtime [static_cast<byte>(i/2)][0] = EEPROM.read(i);  //not sure if the type casting is needed, but ehh
+    alarmtime [static_cast<byte>(i/2)][1] = EEPROM.read(i+1);
+  }
+  Serial.println("EEPROM READ");
+  #endif
+  
   //Check if the RTC has lost power previously, and if so set the time based on the compile time.
   //Code is based on Adafruit's RTClib lostPower() function since DS3232RTC.h doesn't include a similar function.
   //readRTC(RTC_STATUS) returns the byte value of the RTC_STATUS register.
@@ -174,6 +184,7 @@ void loop() {
       }
     }
     else{
+      Serial.print("Read Error: ");
       Serial.println(btchar);
     }
   }
@@ -203,6 +214,11 @@ void SetTimes(byte TimeInput[23]){
 
   for (byte i = 0; i<23; i++) //clears the TimeInput / btinput array
     TimeInput[i] = 0;
+
+  for (byte i = 1; i<=14; i+=2){
+    EEPROM.update(i, alarmtime [static_cast<byte>(i/2)][0]);  //EEPROM.update() doesn't write to memory unless the value is different
+    EEPROM.update(i+1, alarmtime [static_cast<byte>(i/2)][1]);
+  }
 }
 
 void ButtonPress(){
