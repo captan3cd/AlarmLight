@@ -3,6 +3,8 @@ An Arduino powered dimmer. The goal is to create a light dimmer that can slowly 
 Details
 This project uses a Zero-Cross detector based AC dimmer to control the voltaged delivered to an AC light. An RTC module is used for scheduling the light to slowly turn on at a specified time. A simple push button is used for basic on/off control. Finally, a bluetooth module allows for remotely setting the alarm time and light brightness.
 
+Currently I'm using the anroid app "Serial Bluetooth Terminal" for sending commands and receiving error output.
+
 Compile
 The ino file should be compiled from Arduino's IDE. If using a Nano V3 the IDE's board option should be set to "Arduino Duemilanove or Diecimila" and the processor to "ATmega328p".
 The following libraries need to be added to Arduino's library folder.
@@ -14,5 +16,7 @@ Attributions
 Code snippits are used and modified from Ryan McLaughlin and diy_bloke's Light Dimmer code. <https://www.instructables.com/id/Arduino-controlled-light-dimmer-The-circuit> <https://forum.arduino.cc/index.php?topic=6970.0>.
 
 The DS3232RTC library by JChristensen and the Time library by Paul Stoffregen are utilized.
+
+Modified code from Joe Ellsworth's cvt_date function is used.
 
 

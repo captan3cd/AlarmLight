@@ -34,10 +34,10 @@ time_t cvt_date(char const *date, char const *time)
     static const char month_names[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
     
     sscanf(date, "%s %2hd %4hd", s_month, &tday, &tyear);
-//    Serial.println(date);
-//    Serial.println(s_month);
-//    Serial.println(t.Day);
-//    Serial.println(tyear);
+//    Serial2.println(date);
+//    Serial2.println(s_month);
+//    Serial2.println(t.Day);
+//    Serial2.println(tyear);
     sscanf(time, "%2hd %*c %2hd %*c %2hd", &hour, &minute, &second);
     // Find where is s_month in month_names. Deduce month value.
     t.Month = (strstr(month_names, s_month) - month_names) / 3 + 1;   
@@ -46,12 +46,12 @@ time_t cvt_date(char const *date, char const *time)
     t.Hour = hour;
     t.Minute = minute;
     t.Second = second;
-//    Serial.println(t.Hour);
-//    Serial.println(t.Minute);
-//    Serial.println(t.Second);
-//    Serial.println(t.Day);
-//    Serial.println(t.Month);
-//    Serial.println(t.Year);   
+//    Serial2.println(t.Hour);
+//    Serial2.println(t.Minute);
+//    Serial2.println(t.Second);
+//    Serial2.println(t.Day);
+//    Serial2.println(t.Month);
+//    Serial2.println(t.Year);   
     return makeTime(t);
 }
 

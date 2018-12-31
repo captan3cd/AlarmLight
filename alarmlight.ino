@@ -64,7 +64,6 @@ byte freqstep = 65;  //For 50Hz, use 75
 // (100Hz=10000uS) / 128 steps = 75uS/step
 
 void setup() {
-  Serial.begin(9600);   //Serial refers to the usb serial port
   Serial2.begin(9600);  //Serial2 are hardware serial pins 9/10 on teensy
 
   #ifdef MEMORYON  //Read the alarmtime values from memory
@@ -72,7 +71,7 @@ void setup() {
     alarmtime [static_cast<byte>(i/2)][0] = EEPROM.read(i);  //not sure if the type casting is needed, but ehh
     alarmtime [static_cast<byte>(i/2)][1] = EEPROM.read(i+1);
   }
-  Serial.println("EEPROM READ");
+  Serial2.println("EEPROM READ");
   #endif
   
   //Check if the RTC has lost power previously, and if so set the time based on the compile time.
@@ -81,29 +80,29 @@ void setup() {
   // >>7 then shifts the bits 7 places to the right, leaving only the OSF bit, which is a value of 1 if power was lost
   
   if (RTC.readRTC(RTC_STATUS)>>7){
-    Serial.println("Setting time by compile time");
+    Serial2.println("Setting time by compile time");
     setTime(cvt_date(__DATE__,__TIME__)); //Sets the system clock
     RTC.set(now()); //Sets the rtc based on the system clock
   }
   
   setSyncProvider(RTC.get); //Syncs the arduino's internal clock with the ds3232
   if (timeStatus() != timeSet){
-    Serial.println("Time Sync Error");
+    Serial2.println("Time Sync Error");
   }
   
   //I miss << :(
-  Serial.print("System time is ");
-  Serial.print(hour());
-  Serial.print(" ");
-  Serial.print(minute());
-  Serial.print(" ");
-  Serial.print(second());
-  Serial.print(" ");
-  Serial.print(day());
-  Serial.print(" ");
-  Serial.print(month());
-  Serial.print(" ");
-  Serial.println(year());
+  Serial2.print("System time is ");
+  Serial2.print(hour());
+  Serial2.print(" ");
+  Serial2.print(minute());
+  Serial2.print(" ");
+  Serial2.print(second());
+  Serial2.print(" ");
+  Serial2.print(day());
+  Serial2.print(" ");
+  Serial2.print(month());
+  Serial2.print(" ");
+  Serial2.println(year());
 
   LastTime = now(); //Lasttime needs to be initiated, otherwise the first pass through the main loop thinks there is a day change
   currentday = weekday(LastTime);
@@ -127,11 +126,11 @@ void loop() {
     alarmlightstatus=false;
     currentday = weekday(CurrentTime); // Update the day variable
   }    
-  //Serial.println(CurrentTime.hour()); Serial.println(CurrentTime.minute()); Serial.println(currentday);
+  //Serial2.println(CurrentTime.hour()); Serial2.println(CurrentTime.minute()); Serial2.println(currentday);
   
   //If the current time is past the alarm time, and the light is less than half max brightness, and the alarm is set / valid
   if (hour(CurrentTime)>=alarmtime[currentday-1][0] && minute(CurrentTime)>=alarmtime[currentday-1][1] && dimming>=MINBRIGHT/2 && alarmtime[currentday-1][0]<24 &&!alarmlightstatus){
-    Serial.println("triggered");
+    Serial2.println("triggered");
     alarmlightstatus=true;
     activeflag = 3;
     AlarmRamp.Set(&dimming, MAXBRIGHT, alarmtimeramp);
@@ -163,7 +162,7 @@ void loop() {
          if (btchar >= '0' && btchar <='9')
             btinput[i] = btchar - '0';  //converts to an int from a char
          else{
-          Serial.print("Invalid Input.");
+          Serial2.print("Invalid Input.");
           break;
          }
       }
@@ -178,15 +177,16 @@ void loop() {
       btchar = Serial2.read();
       byte tempbrightness = (btchar - '0')*10 + (Serial2.read() - '0'); //This is a brightness percentage from 0 to 99.
       if (tempbrightness <=100 && tempbrightness >=0){
-        Serial.println((byte)(MINBRIGHT - tempbrightness * 1.2121));
+        Serial2.println((byte)(MINBRIGHT - tempbrightness * 1.2121));
         AdjustRamp.Set(&dimming, (byte)(MINBRIGHT - tempbrightness * 1.2121), adjusttimeramp);
         activeflag = 2; //set flag
       }
     }
     else{
-      Serial.print("Read Error: ");
-      Serial.println(btchar);
+      Serial2.print("Read Error: ");
+      Serial2.println(btchar);
     }
+    Serial2.clear(); //Clear any remaining input like CR or LFs
   }
 
   ButtonRamp.Update();

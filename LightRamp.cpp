@@ -25,7 +25,7 @@ void LightRamp::Update (){
 
   if (currentclick - prevclick > delaytime){
     *currentbright = (*currentbright + sign);
-    Serial.println(*currentbright);
+    Serial2.println(*currentbright);
     prevclick = currentclick;
     if (*currentbright == targetbright)  //if the current brightness is the target brightness, reset the activeflag so no more updates occur.
       *activeflag = 0; 
