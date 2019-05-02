@@ -30,5 +30,4 @@ void LightRamp::Update (){
     if (*currentbright == targetbright)  //if the current brightness is the target brightness, reset the activeflag so no more updates occur.
       *activeflag = 0; 
   }
-  
 }

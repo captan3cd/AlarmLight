@@ -24,8 +24,6 @@ class LightRamp{
     LightRamp(byte f, volatile byte* a );
     void Set(volatile byte* cbright, byte tbright, unsigned long ramp); //the cbright param should be passed with &variable
     void Update();
-
 };
-
 
 #endif
